@@ -1,17 +1,21 @@
 import streamlit as st
 import pandas as pd
-import yahoo_fin.stock_info as si
+import yfinance as yf  # Import yfinance
 
 def fetch_data(tickers):
-    """Fetches adjusted closing prices for given tickers from Yahoo Finance."""
+    """Fetches adjusted closing prices for given tickers from Yahoo Finance using yfinance."""
     data = {}
     for ticker in tickers:
         try:
-            df = si.get_data(ticker, interval="1d")  # Daily data
-            data[ticker] = df['adjclose']
+            # Use yf.download to get data directly into a DataFrame
+            df = yf.download(ticker, period="max", interval="1d") # period="max" gets max available history
+            if df.empty:
+                st.error(f"No data found for {ticker} from yfinance.")
+                return None
+            data[ticker] = df['Adj Close'] # 'Adj Close' column in yfinance
         except Exception as e:
-            st.error(f"Could not fetch data for {ticker}. Error: {e}")
-            return None  # Return None if any ticker fails
+            st.error(f"Could not fetch data for {ticker} using yfinance. Error: {e}")
+            return None
     return pd.DataFrame(data)
 
 def calculate_relative_performance(df, reference_ticker):
@@ -34,11 +38,11 @@ def main():
 
     # Sidebar controls
     st.sidebar.header("Settings")
-    reference_index = st.sidebar.selectbox("Reference Index", ["SPY", "DJI", "QQQ", "IXIC"], index=0) # Added more common indices
-    default_comparison_assets = ["HSI", "GLD", "BTC-USD"] # BTC-USD is Yahoo Finance ticker for Bitcoin
+    reference_index = st.sidebar.selectbox("Reference Index", ["SPY", "DJI", "QQQ", "^IXIC"], index=0) # ^IXIC for Nasdaq Composite in yfinance
+    default_comparison_assets = ["HSI", "GLD", "BTC-USD"]
     comparison_assets = st.sidebar.multiselect(
         "Comparison Assets",
-        ["HSI", "GLD", "BTC-USD", "AAPL", "MSFT", "TSLA", "EURUSD=X", "GBPUSD=X", "JPY=X"], # Added more asset options and currencies
+        ["HSI", "GLD", "BTC-USD", "AAPL", "MSFT", "TSLA", "EURUSD=X", "GBPUSD=X", "JPY=X"],
         default=default_comparison_assets
     )
 
@@ -48,10 +52,10 @@ def main():
     raw_data = fetch_data(tickers_to_fetch)
 
     if raw_data is not None:
-        st.success("Data fetched successfully!")
+        st.success("Data fetched successfully using yfinance!")
 
         st.subheader("Raw Adjusted Closing Prices")
-        st.dataframe(raw_data.tail()) # Display last few rows of raw data
+        st.dataframe(raw_data.tail())
 
         relative_performance_df = calculate_relative_performance(raw_data, reference_index)
 
@@ -62,7 +66,7 @@ def main():
         else:
             st.error("Error calculating relative performance.")
     else:
-        st.error("Failed to fetch data. Please check tickers and internet connection.")
+        st.error("Failed to fetch data using yfinance. Please check tickers and internet connection.")
 
 if __name__ == "__main__":
     main()
